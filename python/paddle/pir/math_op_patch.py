@@ -1136,8 +1136,8 @@ def monkey_patch_value():
             _binary_creator_('__matmul__', paddle.tensor.matmul, False, None),
         ),
         (
-            '__matmul__',
-            _binary_creator_('__matmul__', paddle.tensor.matmul, False, None),
+            '__rmatmul__',
+            _binary_creator_('__rmatmul__', paddle.tensor.matmul, True, None),
         ),
         ('__neg__', _scalar_neg_),
         ('__abs__', _scalar_abs_),
