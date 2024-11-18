@@ -416,7 +416,8 @@ class TestMathOpPatches(unittest.TestCase):
             feed={"a": a_np, "b": b_np},
             fetch_list=[c],
         )
-        np.testing.assert_allclose(b_np @ a_np, c_np, rtol=1e-05)
+        np.testing.assert_allclose(a_np @ b_np, c_np, rtol=1e-05)
+
     @prog_scope()
     def test_builtin_type_conversion(self):
         a = paddle.static.data(name="a", shape=[])
@@ -553,11 +554,14 @@ class TestDygraphMathOpPatches(unittest.TestCase):
 
     def test_dygraph_rmatmul(self):
         paddle.disable_static()
-        a = paddle.to_tensor(np.random.random((2, 3)).astype(np.float32))
-        b = paddle.to_tensor(np.random.random((3, 5)).astype(np.float32))
+        a_np = np.random.random((2, 3)).astype(np.float32) * 100
+        b_np = np.random.random((3, 5)).astype(np.float32) * 100
+        a = paddle.to_tensor(a_np)
+        b = paddle.to_tensor(b_np)
         c = b.__rmatmul__(a)
-        np.testing.assert_allclose(b.numpy() @ a.numpy(), c.numpy())
+        np.testing.assert_allclose(a @ b, c.numpy(), rtol=1e-5, atol=1e-5)
         paddle.enable_static()
+
 
 if __name__ == '__main__':
     unittest.main()
