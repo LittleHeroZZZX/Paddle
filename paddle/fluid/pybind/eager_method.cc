@@ -1867,10 +1867,14 @@ static PyObject* tensor__setitem_dygraph(TensorObject* self,
       if (transed_index.size() == 1 &&
           transed_index[0].dtype() == phi::DataType::BOOL &&
           transed_index[0].shape().size() == self->tensor.shape().size()) {
-        // In this case, transed_index[0] represents a Boolean Array Indexing as
-        // defined in the Python array API standard.
-        // This is a specific scenario where the shape of transed_index[0]
-        // exactly matches the shape of self->tensor.
+        if (value_tensor.shape() != self->tensor.shape()) {
+          value_tensor = expand_ad_func(value_tensor, self->tensor.shape());
+        }
+        transed_sub_tensor =
+            where__ad_func(logical_not_ad_func(transed_index[0]),
+                           transed_sub_tensor,
+                           value_tensor);
+      } else {
         transed_sub_tensor =
             index_put__ad_func(transed_sub_tensor, transed_index, value_tensor);
       }
