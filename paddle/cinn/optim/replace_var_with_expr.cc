@@ -16,9 +16,10 @@
 
 #include "paddle/cinn/common/cas.h"
 #include "paddle/cinn/ir/ir.h"
-#include "paddle/cinn/ir/ir_mutator.h"
+#include "paddle/cinn/ir/ir_mutator.h"  // TODO DELETE IT
 #include "paddle/cinn/ir/ir_printer.h"
 #include "paddle/cinn/ir/op/ir_operators.h"
+#include "paddle/cinn/ir/stmt_visitors.h"
 #include "paddle/cinn/ir/tensor.h"
 #include "paddle/cinn/ir/utils/ir_copy.h"
 #include "paddle/cinn/optim/ir_simplify.h"
@@ -26,6 +27,118 @@
 
 namespace cinn {
 namespace optim {
+
+struct ReplaceVarWithExprStmtMutator : public ir::stmt::StmtMutator<> {
+  ReplaceVarWithExprStmtMutator(const Var& var,
+                                const Expr& expr,
+                                const std::string& tensor_name)
+      : var_(var), expr_(expr), tensor_name_(tensor_name) {}
+
+  void operator()(ir::stmt::StmtRef stmt) {
+    if (tensor_name_.empty()) visit_all_ = true;
+    ir::stmt::StmtMutator<>::VisitStmt(stmt);
+  }
+
+  void operator()(ir::stmt::BlockRef block) {
+    if (tensor_name_.empty()) visit_all_ = true;
+    ir::stmt::StmtMutator<>::VisitBlock(block);
+  }
+
+ private:
+  bool ShouldReplaceExpr(const Expr& expr) {
+    if (expr.as_var()->name == var_->name && (do_replace_ || visit_all_)) {
+      return true;
+    }
+    return false;
+  }
+
+  void VisitExpr(ir::Expr* expr) {
+    if (expr->as_var()->name == var_->name && (do_replace_ || visit_all_)) {
+      auto copied = ir::ir_utils::IRCopy(expr_);
+      *expr = copied;
+    }
+  }
+
+  void VisitStmt(ir::stmt::Let stmt) override {
+    // TODO implement the function
+    ;
+  }
+
+  void VisitStmt(ir::stmt::Store stmt) override {
+    auto* tensor = stmt->tensor().as_tensor();
+    if (tensor->name == tensor_name_) {
+      do_replace_ = true;
+    } else {
+      do_replace_ = false;
+    }
+    std::vector<Expr> new_indices = stmt->indices();
+    for (auto& index : new_indices) {
+      if (ShouldReplaceExpr(index)) {
+        auto copied = ir::ir_utils::IRCopy(expr_);
+        index = copied;
+      }
+    }
+    stmt->set_indices(new_indices);
+    do_replace_ = false;
+    if (ShouldReplaceExpr(stmt->tensor())) {
+      auto copied = ir::ir_utils::IRCopy(expr_);
+      stmt->set_tensor(copied);
+    }
+    if (ShouldReplaceExpr(stmt->value())) {
+      auto copied = ir::ir_utils::IRCopy(expr_);
+      stmt->set_value(copied);
+    }
+  }
+
+  void VisitStmt(ir::stmt::Alloc stmt) override {
+    // TODO implement the function
+    ;
+  }
+
+  void VisitStmt(ir::stmt::Free stmt) override {
+    // TODO implement the function
+    ;
+  }
+
+  void VisitStmt(ir::stmt::IfThenElse stmt) override {
+    // TODO implement the function
+    ;
+  }
+
+  // TODO 如何处理Load
+
+  void VisitStmt(ir::stmt::For stmt) override {
+    if (ShouldReplaceExpr(stmt->min())) {
+      auto copied = ir::ir_utils::IRCopy(expr_);
+      stmt->set_min(copied);
+    }
+    if (ShouldReplaceExpr(stmt->extent())) {
+      auto copied = ir::ir_utils::IRCopy(expr_);
+      stmt->set_extent(copied);
+    }
+    VisitBlock(stmt->body());
+    if (stmt->loop_var()->name == var_->name && expr_.as_var() && visit_all_) {
+      stmt->set_loop_var(expr_.as_var_ref());
+    }
+  }
+
+  void VisitStmt(ir::stmt::Evaluate) override {
+    // TODO implement the function
+    ;
+  }
+
+  void VisitStmt(ir::stmt::Schedule stmt) override {
+    // TODO implement the function
+    ;
+  }
+
+ private:
+  bool do_replace_{false};
+  bool visit_all_{false};
+  const Var& var_;
+  const Expr& expr_;
+  const std::string& tensor_name_;
+};
 
 struct ReplaceVarWithExprMutator : public ir::IRMutator<> {
   ReplaceVarWithExprMutator(const Var& var,
@@ -112,6 +225,22 @@ void ReplaceVarWithExpr(Expr* source,
                         const Expr& expr,
                         const std::string& tensor_name) {
   ReplaceVarWithExprMutator mutator(var, expr, tensor_name);
+  mutator(source);
+}
+
+void ReplaceVarWithExprInStmt(ir::stmt::StmtRef source,
+                              const Var& var,
+                              const Expr& expr,
+                              const std::string& tensor_name) {
+  ReplaceVarWithExprStmtMutator mutator(var, expr, tensor_name);
+  mutator(source);
+}
+
+void ReplaceVarWithExprInBlock(ir::stmt::BlockRef source,
+                               const Var& var,
+                               const Expr& expr,
+                               const std::string& tensor_name) {
+  ReplaceVarWithExprStmtMutator mutator(var, expr, tensor_name);
   mutator(source);
 }
 

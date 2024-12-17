@@ -28,6 +28,7 @@
 #include "paddle/cinn/runtime/backend_api.h"
 #include "paddle/cinn/runtime/cinn_runtime.h"
 #include "paddle/common/enforce.h"
+#include "paddle/common/macros.h"
 using cinn::runtime::BackendAPI;
 
 namespace cinn {
